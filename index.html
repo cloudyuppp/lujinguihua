@@ -3,197 +3,290 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="initial-scale=1.0, width=device-width">
-    <title>高德地图路径规划 - 完整版</title>
+    <title>高德地图路径规划 - 专业版</title>
     <style>
-        /* 基础样式 (保持不变) */
-        html, body {
-            width: 100%; height: 100%; margin: 0; padding: 0;
-            font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
-            overflow: hidden; /* 防止页面滚动 */
-        }
+        /* 您的CSS样式，我们只增加一些小样式 */
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; overflow: hidden; }
         #container { width: 100%; height: 100%; }
         #control-panel {
-            position: absolute; top: 10px; left: 10px; z-index: 100; /* 提高层级 */
+            position: absolute; top: 10px; left: 10px; z-index: 100;
             background: white; padding: 15px; border-radius: 8px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.15); max-width: 350px;
             max-height: calc(100% - 20px); overflow-y: auto;
-            transition: transform 0.3s ease-in-out; /* 新增：为滑动添加动画效果 */
+            transition: transform 0.3s ease-in-out;
         }
-        /* 其他PC端样式 (保持不变) */
-        #waypoints-list { max-height: 180px; overflow-y: auto; margin: 10px 0; border: 1px solid #eee; border-radius: 3px; }
-        .waypoint-item { padding: 8px 5px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .waypoint-item:last-child { border-bottom: none; }
+        .list-panel { max-height: 150px; overflow-y: auto; margin: 10px 0; border: 1px solid #eee; border-radius: 3px; }
+        .list-item { padding: 8px 5px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .list-item:last-child { border-bottom: none; }
+        .list-item:hover { background-color: #f0f8ff; }
+        .list-item.selected { background-color: #fffbe6; font-weight: bold; }
         input, button, select { margin: 5px 0; padding: 10px; width: 100%; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; }
         button { cursor: pointer; background-color: #007bff; color: white; border: none; font-weight: bold; }
         button:hover { background-color: #0056b3; }
-        #get-location-btn { background-color: #17a2b8; }
-        #get-location-btn:hover { background-color: #138496; }
         #clear-btn { background-color: #dc3545; }
         #clear-btn:hover { background-color: #c82333; }
         #optimize-btn { background-color: #28a745; }
         #optimize-btn:hover { background-color: #218838; }
+        #import-csv-btn { background-color: #ffc107; color: black; }
+        #import-csv-btn:hover { background-color: #e0a800; }
         .error-message { color: #dc3545; font-size: 14px; margin-top: 5px; }
         .delete-btn { background-color: #6c757d; color: white; padding: 2px 6px; font-size: 12px; margin-left: 10px; width: auto; }
         .delete-btn:hover { background-color: #5a6268; }
         .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        
-        /* 【新增】汉堡菜单按钮的样式 */
-        #menu-toggle {
-            display: none; /* 默认在PC端不显示 */
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 101; /* 比控制面板层级更高 */
-            width: 30px;
-            height: 30px;
-            background: white;
-            border-radius: 4px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-        #menu-toggle span {
-            display: block;
-            width: 20px;
-            height: 2px;
-            background: #333;
-            margin: 2px 0;
-            transition: all 0.3s;
-        }
-
-        /* 【新增】移动端响应式样式 (当屏幕宽度小于等于768px时生效) */
-        @media (max-width: 768px) {
-            #menu-toggle {
-                display: flex; /* 在手机端显示汉堡按钮 */
-            }
-            #control-panel {
-                width: 85%; /* 调整面板宽度以适应手机 */
-                max-width: 320px;
-            }
-            /* 新增一个.collapsed类，用于隐藏面板 */
-            #control-panel.collapsed {
-                transform: translateX(-110%); /* 将面板移出屏幕左侧 */
-            }
-        }
+        #route-info-panel { display: none; margin-top: 15px; padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; }
+        #route-info-panel p { margin: 5px 0; }
+        #menu-toggle { display: none; position: absolute; top: 15px; left: 15px; z-index: 101; width: 30px; height: 30px; background: white; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #menu-toggle span { display: block; width: 20px; height: 2px; background: #333; margin: 2px 0; transition: all 0.3s; }
+        input[type="file"] { display: none; }
+        @media (max-width: 768px) { #menu-toggle { display: flex; } #control-panel { width: 85%; max-width: 320px; } #control-panel.collapsed { transform: translateX(-110%); } }
     </style>
 </head>
 <body>
     <div id="container"></div>
-
-    <!-- 【新增】菜单切换按钮 -->
-    <div id="menu-toggle">
-        <span></span>
-        <span></span>
-        <span></span>
-    </div>
-
-    <!-- 【修改】默认给控制面板加上 collapsed 类 -->
+    <div id="menu-toggle"><span></span><span></span><span></span></div>
     <div id="control-panel" class="collapsed">
         <div class="control-group">
-            <h3>地图类型</h3>
-            <select id="map-type-selector">
-                <option value="standard">标准地图</option>
-                <option value="satellite">卫星地图</option>
-            </select>
+            <h3>数据导入与管理</h3>
+            <input type="file" id="csv-input" accept=".csv">
+            <button id="import-csv-btn">导入CSV文件</button>
+            <div class="list-panel" id="imported-points-list">
+                <h4>数据源 (点击以选择)</h4>
+                <div id="imported-points-container"></div>
+            </div>
         </div>
         <div class="control-group">
-            <h3>路径规划工具</h3>
-            <p>请按顺序添加起点、途经点、终点</p>
-            <button id="get-location-btn">获取当前位置作起点</button>
-            <input type="text" id="waypoint-input" placeholder="或手动输入经纬度，如：116.4,39.9">
-            <button id="add-waypoint">添加点</button>
+            <h3>路径规划</h3>
+            <div class="list-panel" id="planning-waypoints-list">
+                <h4>规划列表 (起点->途经点->终点)</h4>
+                <div id="planning-waypoints-container"></div>
+            </div>
+            <select id="strategy-selector">
+                <option value="LEAST_TIME">时间最短</option>
+                <option value="LEAST_DISTANCE">距离最短</option>
+                <option value="LEAST_FEE">费用最少</option>
+        <option value="AVOID_HIGHWAY">不走高速</option>
+            </select>
+            <button id="optimize-btn">开始顺路规划</button>
         </div>
-        <div id="waypoints-list">
-            <h4>点列表：</h4>
-            <div id="waypoints-container"></div>
+        <div id="route-info-panel">
+             <p><strong>预计时间：</strong><span id="route-time">--</span></p>
+             <p><strong>总路程：</strong><span id="route-distance">--</span></p>
         </div>
-        <button id="optimize-btn">顺路规划</button>
-        <button id="clear-btn">清空所有点</button>
+        <button id="clear-btn" style="margin-top: 15px;">清空所有</button>
         <div id="error-message" class="error-message"></div>
     </div>
 
     <script type="text/javascript">
-        window._AMapSecurityConfig = {
-            securityJsCode: '18f3474d5a34085469b83c202da831ef',
-        }
+        window._AMapSecurityConfig = { securityJsCode: '18f3474d5a34085469b83c202da831ef' };
     </script>
-    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=02cd41675942a0db9428d859a0e6f4f3&plugin=AMap.Driving,AMap.Geolocation,AMap.TileLayer.Satellite,AMap.TileLayer.RoadNet"></script>
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=02cd41675942a0db9428d859a0e6f4f3&plugin=AMap.Driving,AMap.Geolocation"></script>
     
     <script type="text/javascript">
-        var map = new AMap.Map('container', {
-            zoom: 11,
-            center: [116.397428, 39.90923]
-        });
+        var map = new AMap.Map('container', { zoom: 11, center: [116.397428, 39.90923] });
         
-        var waypoints = [], markers = [], driving = null;
-        var satelliteLayer = new AMap.TileLayer.Satellite();
-        var roadNetLayer = new AMap.TileLayer.RoadNet();
+        // --- 数据状态管理 ---
+        var importedPoints = []; // 存放从CSV导入的所有点 {id, lng, lat, marker}
+        var planningWaypoints = []; // 存放用户选择用于规划的点 {id, lng, lat}
+        var driving = null;
 
         // --- DOM元素获取 ---
-        var controlPanel = document.getElementById('control-panel'); // 获取控制面板
-        var menuToggle = document.getElementById('menu-toggle');     // 获取菜单按钮
-        // 其他DOM元素...
-        var waypointInput = document.getElementById('waypoint-input');
-        var addWaypointBtn = document.getElementById('add-waypoint');
-        var optimizeBtn = document.getElementById('optimize-btn');
-        var clearBtn = document.getElementById('clear-btn');
-        var waypointsContainer = document.getElementById('waypoints-container');
+        var controlPanel = document.getElementById('control-panel'), menuToggle = document.getElementById('menu-toggle');
+        var optimizeBtn = document.getElementById('optimize-btn'), clearBtn = document.getElementById('clear-btn');
         var errorMessage = document.getElementById('error-message');
-        var mapTypeSelector = document.getElementById('map-type-selector');
-        var getLocationBtn = document.getElementById('get-location-btn');
+        var strategySelector = document.getElementById('strategy-selector');
+        var routeInfoPanel = document.getElementById('route-info-panel'), routeTimeEl = document.getElementById('route-time'), routeDistanceEl = document.getElementById('route-distance');
+        var importCsvBtn = document.getElementById('import-csv-btn'), csvInput = document.getElementById('csv-input');
+        var importedPointsContainer = document.getElementById('imported-points-container');
+        var planningWaypointsContainer = document.getElementById('planning-waypoints-container');
+
+        // --- Marker 样式定义 ---
+        var defaultIcon = new AMap.Icon({
+            size: new AMap.Size(25, 34),
+            image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png',
+            imageSize: new AMap.Size(25, 34)
+        });
+        var selectedIcon = new AMap.Icon({
+            size: new AMap.Size(25, 34),
+            image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png',
+            imageSize: new AMap.Size(25, 34)
+        });
 
         // --- 事件绑定 ---
-        // 【新增】菜单按钮的点击事件
-        menuToggle.addEventListener('click', function(e) {
-            e.stopPropagation(); // 防止点击事件冒泡到地图
-            controlPanel.classList.toggle('collapsed');
-        });
-
-        // 【新增】点击地图时，如果面板是展开的，则收起面板
-        map.on('click', function() {
-            if (!controlPanel.classList.contains('collapsed')) {
-                controlPanel.classList.add('collapsed');
-            }
-        });
-
-        // 【新增】阻止在控制面板上的点击事件冒泡到地图
-        controlPanel.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-
-        // 其他事件绑定...
-        addWaypointBtn.addEventListener('click', addWaypointFromInput);
+        menuToggle.addEventListener('click', function(e) { e.stopPropagation(); controlPanel.classList.toggle('collapsed'); });
+        map.on('click', function() { if (!controlPanel.classList.contains('collapsed')) { controlPanel.classList.add('collapsed'); } });
+        controlPanel.addEventListener('click', function(e) { e.stopPropagation(); });
         optimizeBtn.addEventListener('click', doPathOptimize);
         clearBtn.addEventListener('click', clearAll);
-        mapTypeSelector.addEventListener('change', changeMapType);
-        getLocationBtn.addEventListener('click', getLocationAsStart);
+        importCsvBtn.addEventListener('click', function() { csvInput.click(); });
+        csvInput.addEventListener('change', handleFileSelect);
 
-        // 【新增】页面加载时检查一次屏幕宽度，决定是否默认展开面板
-        if (window.innerWidth > 768) {
-            controlPanel.classList.remove('collapsed');
+        if (window.innerWidth > 768) { controlPanel.classList.remove('collapsed'); }
+        
+        // --- 主要功能函数 ---
+        
+        function handleFileSelect(event) {
+            var file = event.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    parseCsvAndRender(e.target.result);
+                } catch (err) {
+                    showErrorMessage('解析文件失败：' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function parseCsvAndRender(csvText) {
+            clearAll();
+            var lines = csvText.trim().split(/\r\n|\n/);
+            var tempPoints = [];
+            
+            for (var i = 1; i < lines.length; i++) {
+                var line = lines[i].trim();
+                if (!line) continue;
+                var parts = line.split(',');
+                if (parts.length < 3) continue;
+
+                var id = parts[0].trim();
+                var lng = parseFloat(parts[1]);
+                var lat = parseFloat(parts[2]);
+
+                if (!id || isNaN(lng) || isNaN(lat)) continue;
+                tempPoints.push({ id: id, lng: lng, lat: lat });
+            }
+
+            if (tempPoints.length === 0) {
+                showErrorMessage('未找到有效坐标点');
+                return;
+            }
+
+            importedPoints = tempPoints;
+            renderImportedPoints();
+            map.setFitView();
+            showErrorMessage('成功导入 ' + importedPoints.length + ' 个点！');
         }
         
-        // --- 函数定义 (所有函数保持不变) ---
-        function changeMapType() {
-            if (mapTypeSelector.value === 'satellite') { map.add([satelliteLayer, roadNetLayer]); } 
-            else { map.remove([satelliteLayer, roadNetLayer]); }
+        function renderImportedPoints() {
+            importedPointsContainer.innerHTML = '';
+            importedPoints.forEach(function(point, index) {
+                // 创建Marker
+                var marker = new AMap.Marker({
+                    position: [point.lng, point.lat],
+                    icon: defaultIcon,
+                    label: { content: String(point.id), direction: 'bottom' },
+                    extData: { id: point.id } // 把ID存入marker
+                });
+                point.marker = marker; // 将marker关联回数据点
+                marker.on('click', function() {
+                    togglePointInPlan(point);
+                });
+                map.add(marker);
+
+                // 创建列表项
+                var item = document.createElement('div');
+                item.className = 'list-item';
+                item.textContent = 'ID: ' + point.id;
+                item.onclick = function() {
+                    togglePointInPlan(point);
+                };
+                importedPointsContainer.appendChild(item);
+                point.listItem = item; // 关联列表项
+            });
         }
-        // ... 此处省略所有其他未改动的JS函数，它们和您上一版完全一样 ...
-        function showErrorMessage(message) { errorMessage.textContent = message; setTimeout(function() { errorMessage.textContent = ''; }, 5000); }
-        function getLocationAsStart() { if (!navigator.geolocation) { showErrorMessage('您的浏览器不支持获取地理位置'); return; } getLocationBtn.textContent = '正在定位...'; navigator.geolocation.getCurrentPosition(function(position) { var lng = position.coords.longitude; var lat = position.coords.latitude; waypoints.unshift([lng, lat]); updateWaypointsListAndMarkers(); map.setCenter([lng, lat]); getLocationBtn.textContent = '获取当前位置作起点'; }, function(error) { var errorInfo = '获取位置失败：' + (error.message || "用户拒绝了请求"); showErrorMessage(errorInfo); getLocationBtn.textContent = '获取当前位置作起点'; }); }
-        function addWaypointFromInput() { var value = waypointInput.value.trim(); if (!value) { showErrorMessage('请输入经纬度坐标'); return; } var coords = value.split(/,|，/); if (coords.length !== 2) { showErrorMessage('坐标格式不正确'); return; } var lng = parseFloat(coords[0]); var lat = parseFloat(coords[1]); if (isNaN(lng) || isNaN(lat) || lng < -180 || lng > 180 || lat < -90 || lat > 90) { showErrorMessage('经纬度无效'); return; } waypoints.push([lng, lat]); waypointInput.value = ''; updateWaypointsListAndMarkers(); errorMessage.textContent = ''; }
-        function deleteWaypoint(index) { waypoints.splice(index, 1); updateWaypointsListAndMarkers(); if (driving) { driving.clear(); } }
-        function updateWaypointsListAndMarkers() { waypointsContainer.innerHTML = ''; clearMarkers(); if (waypoints.length === 0) { waypointsContainer.innerHTML = '<p style="padding:5px;">请添加点</p>'; return; } waypoints.forEach(function(point, index) { addMarker(point[0], point[1]); var item = document.createElement('div'); item.className = 'waypoint-item'; var text = document.createElement('span'); var label = (index === 0) ? '起点: ' : (index === waypoints.length - 1) ? '终点: ' : '途经点 ' + index + ': '; text.textContent = label + point[0].toFixed(6) + ', ' + point[1].toFixed(6); var deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-btn'; deleteBtn.textContent = '删除'; deleteBtn.onclick = function() { deleteWaypoint(index); }; item.appendChild(text); item.appendChild(deleteBtn); waypointsContainer.appendChild(item); }); }
-        function addMarker(lng, lat) { var labelContent = (markers.length === 0) ? '起' : (markers.length === waypoints.length - 1 && waypoints.length > 1) ? '终' : '途'; var marker = new AMap.Marker({ position: [lng, lat], label: { content: labelContent, direction: 'right', offset: new AMap.Pixel(2, 2) } }); markers.push(marker); map.add(marker); }
-        function clearMarkers() { if (markers.length > 0) { map.remove(markers); markers = []; } }
-        function doPathOptimize() { if (waypoints.length < 2) { showErrorMessage('至少需要一个起点和一个终点'); return; } if (driving) { driving.clear(); } driving = new AMap.Driving({ map: map, policy: AMap.DrivingPolicy.LEAST_TIME, autoFitView: true, extensions: 'all' }); var startPoint = new AMap.LngLat(waypoints[0][0], waypoints[0][1]); var endPoint = new AMap.LngLat(waypoints[waypoints.length - 1][0], waypoints[waypoints.length - 1][1]); var intermediatePoints = []; if (waypoints.length > 2) { for (var i = 1; i < waypoints.length - 1; i++) { intermediatePoints.push(new AMap.LngLat(waypoints[i][0], waypoints[i][1])); } } var searchOptions = { viaReordering: true }; if (intermediatePoints.length > 0) { searchOptions.waypoints = intermediatePoints; } driving.search(startPoint, endPoint, searchOptions, function(status, result) { if (status === 'complete') { console.log('路径规划完成', result); errorMessage.textContent = ''; } else { console.error('路径规划失败', result); var errorMsg = '路径规划失败'; if (result && result.info === 'USERKEY_PLAT_NOMATCH') { errorMsg += '：Key与域名不匹配，请检查白名单！'; } else if (result && result.info) { errorMsg += '：' + result.info; } showErrorMessage(errorMsg); } }); }
-        function clearAll() { waypoints = []; if (driving) { driving.clear(); } updateWaypointsListAndMarkers(); errorMessage.textContent = ''; }
+
+        function togglePointInPlan(point) {
+            var existingIndex = planningWaypoints.findIndex(p => p.id === point.id);
+
+            if (existingIndex > -1) {
+                // 如果已在规划中，则移除
+                planningWaypoints.splice(existingIndex, 1);
+                point.marker.setIcon(defaultIcon); // 恢复默认图标
+                point.listItem.classList.remove('selected');
+            } else {
+                // 如果不在规划中，则添加
+                planningWaypoints.push(point);
+                point.marker.setIcon(selectedIcon); // 设置为选中图标
+                point.listItem.classList.add('selected');
+            }
+            updatePlanningList();
+        }
+
+        function updatePlanningList() {
+            planningWaypointsContainer.innerHTML = '';
+            planningWaypoints.forEach(function(point, index) {
+                var item = document.createElement('div');
+                item.className = 'list-item';
+                var label = (index === 0) ? '起点: ' : (index === planningWaypoints.length - 1) ? '终点: ' : '途经点: ';
+                item.textContent = label + 'ID ' + point.id;
+                
+                var deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = '移除';
+                deleteBtn.onclick = function(e) {
+                    e.stopPropagation(); // 防止触发父元素的点击事件
+                    togglePointInPlan(point);
+                };
+
+                item.appendChild(deleteBtn);
+                planningWaypointsContainer.appendChild(item);
+            });
+        }
+
+        function doPathOptimize() {
+            if (planningWaypoints.length < 2) { showErrorMessage('至少选择2个点进行规划'); return; }
+            var selectedPolicy = AMap.DrivingPolicy[strategySelector.value];
+            if (driving) { driving.clear(); }
+            routeInfoPanel.style.display = 'none';
+            var selectedPolicy = AMap.DrivingPolicy[strategySelector.value];
+            driving = new AMap.Driving({ map: map, policy: selectedPolicy, autoFitView: true, extensions: 'all' });
+            
+            var startPoint = new AMap.LngLat(planningWaypoints[0].lng, planningWaypoints[0].lat);
+            var endPoint = new AMap.LngLat(planningWaypoints[planningWaypoints.length - 1].lng, planningWaypoints[planningWaypoints.length - 1].lat);
+            var intermediatePoints = [];
+            if (planningWaypoints.length > 2) {
+                for (var i = 1; i < planningWaypoints.length - 1; i++) {
+                    intermediatePoints.push(new AMap.LngLat(planningWaypoints[i].lng, planningWaypoints[i].lat));
+                }
+            }
+            
+            var searchOptions = { viaReordering: true };
+            if (intermediatePoints.length > 0) { searchOptions.waypoints = intermediatePoints; }
+            
+            driving.search(startPoint, endPoint, searchOptions, function(status, result) {
+                if (status === 'complete' && result.routes && result.routes.length) {
+                    var route = result.routes[0];
+                    routeTimeEl.textContent = formatTime(route.time);
+                    routeDistanceEl.textContent = (route.distance / 1000).toFixed(2) + " 公里";
+                    routeInfoPanel.style.display = 'block';
+                } else {
+                    showErrorMessage('路径规划失败: ' + (result.info || '未知错误'));
+                }
+            });
+        }
+        
+        function clearAll() {
+            if (driving) { driving.clear(); }
+            map.remove(importedPoints.map(p => p.marker)); // 清除所有marker
+            importedPoints = [];
+            planningWaypoints = [];
+            importedPointsContainer.innerHTML = '';
+            planningWaypointsContainer.innerHTML = '';
+            errorMessage.textContent = '';
+            routeInfoPanel.style.display = 'none';
+        }
+        
+        function showErrorMessage(message) {
+            errorMessage.textContent = message;
+            setTimeout(function() { errorMessage.textContent = ''; }, 5000);
+        }
+
+        function formatTime(seconds) { if (isNaN(seconds) || seconds < 0) return "--"; var hours = Math.floor(seconds / 3600); var minutes = Math.floor((seconds % 3600) / 60); var result = ""; if (hours > 0) result += hours + "小时"; if (minutes > 0 || hours === 0) result += minutes + "分钟"; return result || "小于1分钟"; }
         
         // 初始化
-        updateWaypointsListAndMarkers();
+        updatePlanningList();
     </script>
 </body>
 </html>
