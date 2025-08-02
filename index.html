@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="initial-scale=1.0, width=device-width">
-    <title>高德地图路径规划 - 优化版</title>
+    <title>高德地图路径规划 - 支持往返路线</title>
     <style>
-        /* 您的CSS样式，我们只增加一些小样式 */
+        /* CSS from previous version - no changes */
         html, body {
             width: 100%; height: 100%; margin: 0; padding: 0;
             font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
@@ -50,6 +50,7 @@
     </style>
 </head>
 <body>
+    <!-- HTML from previous version - no changes -->
     <div id="container"></div>
     <div id="menu-toggle"><span></span><span></span><span></span></div>
     <div id="control-panel" class="collapsed">
@@ -61,26 +62,22 @@
             </select>
             <button id="goto-location-btn" title="跳转到我的位置">跳转至我的位置</button>
         </div>
-
         <div class="control-group">
             <h3>数据点管理</h3>
             <input type="file" id="csv-input" accept=".csv">
             <button id="import-csv-btn">导入CSV文件</button>
             <button id="get-location-btn" style="margin-top:10px;">添加当前位置为起点</button>
-            
             <div style="margin-top:15px; padding-top:10px; border-top: 1px solid #eee;">
                 <input type="text" id="manual-id-input" placeholder="输入点ID (例如: A01)" class="manual-add-input">
                 <input type="text" id="manual-lng-input" placeholder="输入经度 (例如: 116.405)" class="manual-add-input">
                 <input type="text" id="manual-lat-input" placeholder="输入纬度 (例如: 39.904)" class="manual-add-input">
                 <button id="manual-add-btn">手动添加点</button>
             </div>
-
             <div class="list-panel" id="imported-points-list">
-                <h4>数据源 (点击以选择)</h4>
+                <h4>数据源 (点击以添加至规划)</h4>
                 <div id="imported-points-container"></div>
             </div>
         </div>
-
         <div class="control-group">
             <h3>路径规划</h3>
             <div class="list-panel" id="planning-waypoints-list">
@@ -95,7 +92,6 @@
             </select>
             <button id="optimize-btn">开始顺路规划</button>
         </div>
-        
         <div id="route-info-panel">
             <p><strong>预计时间：</strong><span id="route-time">--</span></p>
             <p><strong>总路程：</strong><span id="route-distance">--</span></p>
@@ -110,15 +106,11 @@
     <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=02cd41675942a0db9428d859a0e6f4f3&plugin=AMap.Driving,AMap.Geolocation,AMap.TileLayer"></script>
     
     <script type="text/javascript">
+        // --- Setup and DOM element acquisition - no changes ---
         var map = new AMap.Map('container', { zoom: 11, center: [116.397428, 39.90923] });
-        
-        // --- 数据状态管理 (新架构) ---
-        var importedPoints = []; // 存放所有数据点 {id, lng, lat, marker, listItem}
-        var planningWaypoints = []; // 存放用户选择用于规划的点
+        var importedPoints = [], planningWaypoints = [];
         var driving = null, geolocation = null;
         var satelliteLayer = new AMap.TileLayer.Satellite(), roadNetLayer = new AMap.TileLayer.RoadNet();
-
-        // --- DOM元素获取 ---
         var controlPanel = document.getElementById('control-panel'), menuToggle = document.getElementById('menu-toggle');
         var optimizeBtn = document.getElementById('optimize-btn'), clearBtn = document.getElementById('clear-btn');
         var errorMessage = document.getElementById('error-message');
@@ -130,22 +122,16 @@
         var manualIdInput = document.getElementById('manual-id-input'), manualLngInput = document.getElementById('manual-lng-input'), manualLatInput = document.getElementById('manual-lat-input'), manualAddBtn = document.getElementById('manual-add-btn');
         var importedPointsContainer = document.getElementById('imported-points-container');
         var planningWaypointsContainer = document.getElementById('planning-waypoints-container');
+        var defaultIcon = new AMap.Icon({ size: new AMap.Size(25, 34), image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png', imageSize: new AMap.Size(25, 34) });
+        var selectedIcon = new AMap.Icon({ size: new AMap.Size(25, 34), image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png', imageSize: new AMap.Size(25, 34) });
 
-        // --- Marker 样式定义 ---
-        var defaultIcon = new AMap.Icon({
-            size: new AMap.Size(25, 34), image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png', imageSize: new AMap.Size(25, 34)
-        });
-        var selectedIcon = new AMap.Icon({
-            size: new AMap.Size(25, 34), image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png', imageSize: new AMap.Size(25, 34)
-        });
-
-        // --- 事件绑定 ---
-        menuToggle.addEventListener('click', function(e) { e.stopPropagation(); controlPanel.classList.toggle('collapsed'); });
-        map.on('click', function() { if (!controlPanel.classList.contains('collapsed')) { controlPanel.classList.add('collapsed'); } });
-        controlPanel.addEventListener('click', function(e) { e.stopPropagation(); });
+        // --- Event binding - no changes ---
+        menuToggle.addEventListener('click', (e) => { e.stopPropagation(); controlPanel.classList.toggle('collapsed'); });
+        map.on('click', () => { if (!controlPanel.classList.contains('collapsed')) { controlPanel.classList.add('collapsed'); } });
+        controlPanel.addEventListener('click', (e) => e.stopPropagation());
         optimizeBtn.addEventListener('click', doPathOptimize);
         clearBtn.addEventListener('click', clearAll);
-        importCsvBtn.addEventListener('click', function() { csvInput.click(); });
+        importCsvBtn.addEventListener('click', () => csvInput.click());
         csvInput.addEventListener('change', handleFileSelect);
         manualAddBtn.addEventListener('click', handleManualAdd);
         mapTypeSelector.addEventListener('change', changeMapType);
@@ -153,54 +139,69 @@
         getLocationBtn.addEventListener('click', getLocationAsStart);
         if (window.innerWidth > 768) { controlPanel.classList.remove('collapsed'); }
         
-        // --- 主要功能函数 ---
+        // --- Main Functions (LOGIC HAS BEEN UPDATED) ---
 
-        function addPoint(pointData, autoSelect = false) {
+        /**
+         * Adds a point to the main data source list.
+         * This function handles marker creation, list item creation, and event binding.
+         */
+        function addPointToDataSource(pointData) {
             if (importedPoints.some(p => p.id === pointData.id)) {
                 showErrorMessage('添加失败：ID "' + pointData.id + '" 已存在。');
-                return false;
+                return null;
             }
-
-            var point = { ...pointData, marker: null, listItem: null };
-
-            // 创建Marker
+            const point = { ...pointData, marker: null, listItem: null };
             point.marker = new AMap.Marker({
                 position: [point.lng, point.lat], icon: defaultIcon,
                 label: { content: String(point.id), direction: 'bottom' },
                 extData: { id: point.id }
             });
-            point.marker.on('click', () => togglePointInPlan(point));
+            point.marker.on('click', () => addPointToPlan(point));
             map.add(point.marker);
-
-            // 创建列表项
             point.listItem = document.createElement('div');
             point.listItem.className = 'list-item';
             point.listItem.textContent = 'ID: ' + point.id;
-            point.listItem.onclick = () => togglePointInPlan(point);
+            point.listItem.onclick = () => addPointToPlan(point);
             importedPointsContainer.appendChild(point.listItem);
-            
             importedPoints.push(point);
-
-            if (autoSelect) {
-                togglePointInPlan(point);
-            }
-            return true;
+            return point;
         }
 
-        function togglePointInPlan(point) {
-            var existingIndex = planningWaypoints.findIndex(p => p.id === point.id);
-            if (existingIndex > -1) {
-                planningWaypoints.splice(existingIndex, 1);
-                point.marker.setIcon(defaultIcon);
-                point.listItem.classList.remove('selected');
-            } else {
-                planningWaypoints.push(point);
-                point.marker.setIcon(selectedIcon);
-                point.listItem.classList.add('selected');
-            }
+        /**
+         * 【NEW】Adds a point to the planning list.
+         * Allows the same point to be added multiple times.
+         */
+        function addPointToPlan(point) {
+            planningWaypoints.push(point);
+            point.marker.setIcon(selectedIcon);
+            point.listItem.classList.add('selected');
             updatePlanningList();
         }
 
+        /**
+         * 【NEW】Removes a point from the planning list at a specific index.
+         * Handles updating the visual state of the point in the data source.
+         */
+        function removePointFromPlan(index) {
+            const pointToRemove = planningWaypoints[index];
+            planningWaypoints.splice(index, 1);
+            
+            // Check if this point still exists elsewhere in the planning list
+            const stillExists = planningWaypoints.some(p => p.id === pointToRemove.id);
+            
+            // If it no longer exists in the plan, reset its style
+            if (!stillExists) {
+                pointToRemove.marker.setIcon(defaultIcon);
+                pointToRemove.listItem.classList.remove('selected');
+            }
+            
+            updatePlanningList();
+        }
+
+        /**
+         * Renders the list of points selected for planning.
+         * The 'remove' button now calls the new removePointFromPlan function.
+         */
         function updatePlanningList() {
             planningWaypointsContainer.innerHTML = '';
             planningWaypoints.forEach((point, index) => {
@@ -212,13 +213,19 @@
                 var deleteBtn = document.createElement('button');
                 deleteBtn.className = 'delete-btn';
                 deleteBtn.textContent = '移除';
+                // CRITICAL CHANGE: Calls removePointFromPlan with the specific index
                 deleteBtn.onclick = (e) => {
                     e.stopPropagation();
-                    togglePointInPlan(point);
+                    removePointFromPlan(index);
                 };
                 item.appendChild(deleteBtn);
                 planningWaypointsContainer.appendChild(item);
             });
+            // If a route is showing, clear it because the plan has changed
+            if (driving) {
+                driving.clear();
+                routeInfoPanel.style.display = 'none';
+            }
         }
 
         function handleFileSelect(event) {
@@ -241,14 +248,11 @@
                 if (!line) continue;
                 var parts = line.split(',');
                 if (parts.length < 3) continue;
-
                 var id = parts[0].trim();
                 var lng = parseFloat(parts[1]);
                 var lat = parseFloat(parts[2]);
-
                 if (!id || isNaN(lng) || isNaN(lat)) continue;
-
-                if(addPoint({ id, lng, lat })) {
+                if(addPointToDataSource({ id, lng, lat })) {
                     pointsAddedCount++;
                 }
             }
@@ -264,11 +268,9 @@
             var id = manualIdInput.value.trim();
             var lng = parseFloat(manualLngInput.value);
             var lat = parseFloat(manualLatInput.value);
-
             if (!id) { showErrorMessage('ID不能为空'); return; }
             if (isNaN(lng) || isNaN(lat)) { showErrorMessage('经纬度必须为有效数字'); return; }
-
-            if (addPoint({ id, lng, lat })) {
+            if (addPointToDataSource({ id, lng, lat })) {
                 showErrorMessage('成功添加点: ' + id);
                 manualIdInput.value = ''; manualLngInput.value = ''; manualLatInput.value = '';
                 map.setFitView();
@@ -281,17 +283,18 @@
             var geoloc = new AMap.Geolocation({ timeout: 10000 });
             geoloc.getCurrentPosition((status, result) => {
                 if (status === 'complete') {
-                    // 生成一个唯一的ID
                     let counter = 1;
                     let id = `MyLocation-${counter}`;
                     while(importedPoints.some(p => p.id === id)) {
                         counter++;
                         id = `MyLocation-${counter}`;
                     }
-                    const point = { id: id, lng: result.position.lng, lat: result.position.lat };
-                    addPoint(point, true); // 添加并自动选择
-                    map.setCenter(result.position);
-                    showErrorMessage('已添加当前位置为起点');
+                    const newPoint = addPointToDataSource({ id: id, lng: result.position.lng, lat: result.position.lat });
+                    if (newPoint) {
+                        addPointToPlan(newPoint); // Also add it directly to the plan
+                        map.setCenter(result.position);
+                        showErrorMessage('已添加当前位置为起点');
+                    }
                 } else {
                     showErrorMessage('定位失败: ' + result.message);
                 }
@@ -306,14 +309,11 @@
             routeInfoPanel.style.display = 'none';
             var selectedPolicy = AMap.DrivingPolicy[strategySelector.value];
             driving = new AMap.Driving({ map: map, policy: selectedPolicy, autoFitView: true, extensions: 'all' });
-            
             var startPoint = new AMap.LngLat(planningWaypoints[0].lng, planningWaypoints[0].lat);
             var endPoint = new AMap.LngLat(planningWaypoints[planningWaypoints.length - 1].lng, planningWaypoints[planningWaypoints.length - 1].lat);
             var intermediatePoints = planningWaypoints.slice(1, -1).map(p => new AMap.LngLat(p.lng, p.lat));
-            
             var searchOptions = { viaReordering: true };
             if (intermediatePoints.length > 0) { searchOptions.waypoints = intermediatePoints; }
-            
             driving.search(startPoint, endPoint, searchOptions, (status, result) => {
                 if (status === 'complete' && result.routes && result.routes.length) {
                     var route = result.routes[0];
@@ -326,6 +326,7 @@
             });
         }
         
+        // --- Utility Functions - no changes ---
         function clearAll() {
             if (driving) { driving.clear(); }
             map.remove(importedPoints.map(p => p.marker));
@@ -336,12 +337,10 @@
             errorMessage.textContent = '';
             routeInfoPanel.style.display = 'none';
         }
-        
         function changeMapType() {
             if (mapTypeSelector.value === 'satellite') { map.add([satelliteLayer, roadNetLayer]); } 
             else { map.remove([satelliteLayer, roadNetLayer]); }
         }
-
         function gotoCurrentLocation() {
             var geoloc = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000, zoomToAccuracy: true });
             geoloc.getCurrentPosition((status, result) => {
@@ -353,11 +352,10 @@
                 }
             });
         }
-
         function showErrorMessage(message) { errorMessage.textContent = message; setTimeout(() => { errorMessage.textContent = ''; }, 5000); }
         function formatTime(seconds) { if (isNaN(seconds) || seconds < 0) return "--"; var h = Math.floor(seconds / 3600); var m = Math.floor((seconds % 3600) / 60); var res = ""; if (h > 0) res += h + "小时"; if (m > 0 || h === 0) res += m + "分钟"; return res || "小于1分钟"; }
         
-        // 初始化
+        // --- Initialization ---
         updatePlanningList();
     </script>
 </body>
