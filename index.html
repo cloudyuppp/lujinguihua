@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1.0, width=device-width">
+    <title>高德地图路径规划 - 完整版</title>
+    <style>
+        /* 您的CSS样式，完全不用改 */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
+        }
+        #container { width: 100%; height: 100%; }
+        #control-panel {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15); max-width: 350px;
+            max-height: 95%; overflow-y: auto;
+        }
+        #waypoints-list { max-height: 180px; overflow-y: auto; margin: 10px 0; border: 1px solid #eee; border-radius: 3px; }
+        .waypoint-item {
+            padding: 8px 5px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .waypoint-item:last-child { border-bottom: none; }
+        input, button, select {
+            margin: 5px 0; padding: 10px; width: 100%; box-sizing: border-box;
+            border-radius: 4px; border: 1px solid #ccc;
+        }
+        button {
+            cursor: pointer; background-color: #007bff; color: white;
+            border: none; font-weight: bold;
+        }
+        button:hover { background-color: #0056b3; }
+        #get-location-btn { background-color: #17a2b8; }
+        #get-location-btn:hover { background-color: #138496; }
+        #clear-btn { background-color: #dc3545; }
+        #clear-btn:hover { background-color: #c82333; }
+        #optimize-btn { background-color: #28a745; }
+        #optimize-btn:hover { background-color: #218838; }
+        .error-message { color: #dc3545; font-size: 14px; margin-top: 5px; }
+        .delete-btn {
+            background-color: #6c757d; color: white; padding: 2px 6px;
+            font-size: 12px; margin-left: 10px; width: auto;
+        }
+        .delete-btn:hover { background-color: #5a6268; }
+        .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="control-panel">
+        <div class="control-group">
+            <h3>地图类型</h3>
+            <!-- 【修改】将样式选择器改为类型选择器 -->
+            <select id="map-type-selector">
+                <option value="standard">标准地图</option>
+                <option value="satellite">卫星地图</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <h3>路径规划工具</h3>
+            <p>请按顺序添加起点、途经点、终点</p>
+            <button id="get-location-btn">获取当前位置作起点</button>
+            <input type="text" id="waypoint-input" placeholder="或手动输入经纬度，如：116.4,39.9">
+            <button id="add-waypoint">添加点</button>
+        </div>
+        <div id="waypoints-list">
+            <h4>点列表：</h4>
+            <div id="waypoints-container"></div>
+        </div>
+        <button id="optimize-btn">顺路规划</button>
+        <button id="clear-btn">清空所有点</button>
+        <div id="error-message" class="error-message"></div>
+    </div>
+
+    <script type="text/javascript">
+        window._AMapSecurityConfig = {
+            securityJsCode: '18f3474d5a34085469b83c202da831ef',
+        }
+    </script>
+    <!-- 【修改】在加载插件时，额外请求图层插件 -->
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=02cd41675942a0db9428d859a0e6f4f3&plugin=AMap.Driving,AMap.Geolocation,AMap.TileLayer.Satellite,AMap.TileLayer.RoadNet"></script>
+    
+    <script type="text/javascript">
+        var map = new AMap.Map('container', {
+            zoom: 11,
+            center: [116.397428, 39.90923]
+        });
+        
+        // --- 图层、路径规划等对象 ---
+        var waypoints = [];
+        var markers = [];
+        var driving = null;
+        
+        // 【新增】创建卫星和路网图层对象
+        var satelliteLayer = new AMap.TileLayer.Satellite();
+        var roadNetLayer = new AMap.TileLayer.RoadNet();
+
+        // --- DOM元素获取 ---
+        var waypointInput = document.getElementById('waypoint-input');
+        var addWaypointBtn = document.getElementById('add-waypoint');
+        var optimizeBtn = document.getElementById('optimize-btn');
+        var clearBtn = document.getElementById('clear-btn');
+        var waypointsContainer = document.getElementById('waypoints-container');
+        var errorMessage = document.getElementById('error-message');
+        var mapTypeSelector = document.getElementById('map-type-selector'); // 修改了ID
+        var getLocationBtn = document.getElementById('get-location-btn');
+
+        // --- 事件绑定 ---
+        addWaypointBtn.addEventListener('click', addWaypointFromInput);
+        optimizeBtn.addEventListener('click', doPathOptimize);
+        clearBtn.addEventListener('click', clearAll);
+        mapTypeSelector.addEventListener('change', changeMapType); // 修改了函数名
+        getLocationBtn.addEventListener('click', getLocationAsStart);
+        
+        // --- 函数定义 ---
+        
+        // 【修改】切换地图类型的函数
+        function changeMapType() {
+            var selectedType = mapTypeSelector.value;
+            if (selectedType === 'satellite') {
+                // 添加卫星和路网图层
+                map.add([satelliteLayer, roadNetLayer]);
+            } else {
+                // 移除卫星和路网图层
+                map.remove([satelliteLayer, roadNetLayer]);
+            }
+        }
+        
+        // 其他所有函数保持不变...
+        function showErrorMessage(message) {
+            errorMessage.textContent = message;
+            setTimeout(function() { errorMessage.textContent = ''; }, 5000);
+        }
+        
+        function getLocationAsStart() {
+            if (!navigator.geolocation) {
+                showErrorMessage('您的浏览器不支持获取地理位置');
+                return;
+            }
+            getLocationBtn.textContent = '正在定位...';
+            navigator.geolocation.getCurrentPosition(function(position) {
+                var lng = position.coords.longitude;
+                var lat = position.coords.latitude;
+                waypoints.unshift([lng, lat]);
+                updateWaypointsListAndMarkers();
+                map.setCenter([lng, lat]);
+                getLocationBtn.textContent = '获取当前位置作起点';
+            }, function(error) {
+                var errorInfo = '获取位置失败：' + (error.message || "用户拒绝了请求");
+                showErrorMessage(errorInfo);
+                getLocationBtn.textContent = '获取当前位置作起点';
+            });
+        }
+        
+        function addWaypointFromInput() {
+            var value = waypointInput.value.trim();
+            if (!value) { showErrorMessage('请输入经纬度坐标'); return; }
+            var coords = value.split(/,|，/);
+            if (coords.length !== 2) { showErrorMessage('坐标格式不正确'); return; }
+            var lng = parseFloat(coords[0]);
+            var lat = parseFloat(coords[1]);
+            if (isNaN(lng) || isNaN(lat) || lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+                showErrorMessage('经纬度无效');
+                return;
+            }
+            waypoints.push([lng, lat]);
+            waypointInput.value = '';
+            updateWaypointsListAndMarkers();
+            errorMessage.textContent = '';
+        }
+        
+        function deleteWaypoint(index) {
+            waypoints.splice(index, 1);
+            updateWaypointsListAndMarkers();
+            if (driving) { driving.clear(); }
+        }
+        
+        function updateWaypointsListAndMarkers() {
+            waypointsContainer.innerHTML = '';
+            clearMarkers();
+            if (waypoints.length === 0) {
+                waypointsContainer.innerHTML = '<p style="padding:5px;">请添加点</p>';
+                return;
+            }
+            waypoints.forEach(function(point, index) {
+                addMarker(point[0], point[1]);
+                var item = document.createElement('div');
+                item.className = 'waypoint-item';
+                var text = document.createElement('span');
+                var label = (index === 0) ? '起点: ' : (index === waypoints.length - 1) ? '终点: ' : '途经点 ' + index + ': ';
+                text.textContent = label + point[0].toFixed(6) + ', ' + point[1].toFixed(6);
+                var deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = '删除';
+                deleteBtn.onclick = function() { deleteWaypoint(index); };
+                item.appendChild(text);
+                item.appendChild(deleteBtn);
+                waypointsContainer.appendChild(item);
+            });
+        }
+        
+        function addMarker(lng, lat) {
+            var labelContent = (markers.length === 0) ? '起' : (markers.length === waypoints.length - 1 && waypoints.length > 1) ? '终' : '途';
+            var marker = new AMap.Marker({
+                position: [lng, lat],
+                label: { content: labelContent, direction: 'right', offset: new AMap.Pixel(2, 2) }
+            });
+            markers.push(marker);
+            map.add(marker);
+        }
+        
+        function clearMarkers() {
+            if (markers.length > 0) {
+                map.remove(markers);
+                markers = [];
+            }
+        }
+        
+        function doPathOptimize() {
+            if (waypoints.length < 2) { showErrorMessage('至少需要一个起点和一个终点'); return; }
+            if (driving) { driving.clear(); }
+            driving = new AMap.Driving({
+                map: map, policy: AMap.DrivingPolicy.LEAST_TIME,
+                autoFitView: true, extensions: 'all'
+            });
+            var startPoint = new AMap.LngLat(waypoints[0][0], waypoints[0][1]);
+            var endPoint = new AMap.LngLat(waypoints[waypoints.length - 1][0], waypoints[waypoints.length - 1][1]);
+            var intermediatePoints = [];
+            if (waypoints.length > 2) {
+                for (var i = 1; i < waypoints.length - 1; i++) {
+                    intermediatePoints.push(new AMap.LngLat(waypoints[i][0], waypoints[i][1]));
+                }
+            }
+            var searchOptions = { viaReordering: true };
+            if (intermediatePoints.length > 0) {
+                searchOptions.waypoints = intermediatePoints;
+            }
+            driving.search(startPoint, endPoint, searchOptions, function(status, result) {
+                if (status === 'complete') {
+                    console.log('路径规划完成', result);
+                    errorMessage.textContent = '';
+                } else {
+                    console.error('路径规划失败', result);
+                    var errorMsg = '路径规划失败';
+                    if (result && result.info === 'USERKEY_PLAT_NOMATCH') {
+                        errorMsg += '：Key与域名不匹配，请检查白名单！';
+                    } else if (result && result.info) {
+                        errorMsg += '：' + result.info;
+                    }
+                    showErrorMessage(errorMsg);
+                }
+            });
+        }
+        
+        function clearAll() {
+            waypoints = [];
+            if (driving) { driving.clear(); }
+            updateWaypointsListAndMarkers();
+            errorMessage.textContent = '';
+        }
+        
+        // 初始化
+        updateWaypointsListAndMarkers();
+    </script>
+</body>
+</html>
