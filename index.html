@@ -3,10 +3,14 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="initial-scale=1.0, width=device-width">
-    <title>高德地图路径规划 - 专业版</title>
+    <title>高德地图路径规划 - 优化版</title>
     <style>
         /* 您的CSS样式，我们只增加一些小样式 */
-        html, body { width: 100%; height: 100%; margin: 0; padding: 0; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; overflow: hidden; }
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
+            overflow: hidden;
+        }
         #container { width: 100%; height: 100%; }
         #control-panel {
             position: absolute; top: 10px; left: 10px; z-index: 100;
@@ -15,7 +19,7 @@
             max-height: calc(100% - 20px); overflow-y: auto;
             transition: transform 0.3s ease-in-out;
         }
-        .list-panel { max-height: 150px; overflow-y: auto; margin: 10px 0; border: 1px solid #eee; border-radius: 3px; }
+        .list-panel { max-height: 120px; overflow-y: auto; margin: 10px 0; border: 1px solid #eee; border-radius: 3px; }
         .list-item { padding: 8px 5px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .list-item:last-child { border-bottom: none; }
         .list-item:hover { background-color: #f0f8ff; }
@@ -23,6 +27,8 @@
         input, button, select { margin: 5px 0; padding: 10px; width: 100%; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; }
         button { cursor: pointer; background-color: #007bff; color: white; border: none; font-weight: bold; }
         button:hover { background-color: #0056b3; }
+        #get-location-btn { background-color: #17a2b8; }
+        #get-location-btn:hover { background-color: #138496; }
         #clear-btn { background-color: #dc3545; }
         #clear-btn:hover { background-color: #c82333; }
         #optimize-btn { background-color: #28a745; }
@@ -33,6 +39,8 @@
         .delete-btn { background-color: #6c757d; color: white; padding: 2px 6px; font-size: 12px; margin-left: 10px; width: auto; }
         .delete-btn:hover { background-color: #5a6268; }
         .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .control-group:last-of-type { border-bottom: none; }
+        .manual-add-input { margin-bottom: 5px; }
         #route-info-panel { display: none; margin-top: 15px; padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px; }
         #route-info-panel p { margin: 5px 0; }
         #menu-toggle { display: none; position: absolute; top: 15px; left: 15px; z-index: 101; width: 30px; height: 30px; background: white; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; }
@@ -46,14 +54,33 @@
     <div id="menu-toggle"><span></span><span></span><span></span></div>
     <div id="control-panel" class="collapsed">
         <div class="control-group">
-            <h3>数据导入与管理</h3>
+            <h3>地图设置</h3>
+            <select id="map-type-selector">
+                <option value="standard">标准地图</option>
+                <option value="satellite">卫星地图</option>
+            </select>
+            <button id="goto-location-btn" title="跳转到我的位置">跳转至我的位置</button>
+        </div>
+
+        <div class="control-group">
+            <h3>数据点管理</h3>
             <input type="file" id="csv-input" accept=".csv">
             <button id="import-csv-btn">导入CSV文件</button>
+            <button id="get-location-btn" style="margin-top:10px;">添加当前位置为起点</button>
+            
+            <div style="margin-top:15px; padding-top:10px; border-top: 1px solid #eee;">
+                <input type="text" id="manual-id-input" placeholder="输入点ID (例如: A01)" class="manual-add-input">
+                <input type="text" id="manual-lng-input" placeholder="输入经度 (例如: 116.405)" class="manual-add-input">
+                <input type="text" id="manual-lat-input" placeholder="输入纬度 (例如: 39.904)" class="manual-add-input">
+                <button id="manual-add-btn">手动添加点</button>
+            </div>
+
             <div class="list-panel" id="imported-points-list">
                 <h4>数据源 (点击以选择)</h4>
                 <div id="imported-points-container"></div>
             </div>
         </div>
+
         <div class="control-group">
             <h3>路径规划</h3>
             <div class="list-panel" id="planning-waypoints-list">
@@ -64,13 +91,14 @@
                 <option value="LEAST_TIME">时间最短</option>
                 <option value="LEAST_DISTANCE">距离最短</option>
                 <option value="LEAST_FEE">费用最少</option>
-        <option value="AVOID_HIGHWAY">不走高速</option>
+                <option value="AVOID_HIGHWAY">不走高速</option>
             </select>
             <button id="optimize-btn">开始顺路规划</button>
         </div>
+        
         <div id="route-info-panel">
-             <p><strong>预计时间：</strong><span id="route-time">--</span></p>
-             <p><strong>总路程：</strong><span id="route-distance">--</span></p>
+            <p><strong>预计时间：</strong><span id="route-time">--</span></p>
+            <p><strong>总路程：</strong><span id="route-distance">--</span></p>
         </div>
         <button id="clear-btn" style="margin-top: 15px;">清空所有</button>
         <div id="error-message" class="error-message"></div>
@@ -79,15 +107,16 @@
     <script type="text/javascript">
         window._AMapSecurityConfig = { securityJsCode: '18f3474d5a34085469b83c202da831ef' };
     </script>
-    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=02cd41675942a0db9428d859a0e6f4f3&plugin=AMap.Driving,AMap.Geolocation"></script>
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=02cd41675942a0db9428d859a0e6f4f3&plugin=AMap.Driving,AMap.Geolocation,AMap.TileLayer"></script>
     
     <script type="text/javascript">
         var map = new AMap.Map('container', { zoom: 11, center: [116.397428, 39.90923] });
         
-        // --- 数据状态管理 ---
-        var importedPoints = []; // 存放从CSV导入的所有点 {id, lng, lat, marker}
-        var planningWaypoints = []; // 存放用户选择用于规划的点 {id, lng, lat}
-        var driving = null;
+        // --- 数据状态管理 (新架构) ---
+        var importedPoints = []; // 存放所有数据点 {id, lng, lat, marker, listItem}
+        var planningWaypoints = []; // 存放用户选择用于规划的点
+        var driving = null, geolocation = null;
+        var satelliteLayer = new AMap.TileLayer.Satellite(), roadNetLayer = new AMap.TileLayer.RoadNet();
 
         // --- DOM元素获取 ---
         var controlPanel = document.getElementById('control-panel'), menuToggle = document.getElementById('menu-toggle');
@@ -96,19 +125,18 @@
         var strategySelector = document.getElementById('strategy-selector');
         var routeInfoPanel = document.getElementById('route-info-panel'), routeTimeEl = document.getElementById('route-time'), routeDistanceEl = document.getElementById('route-distance');
         var importCsvBtn = document.getElementById('import-csv-btn'), csvInput = document.getElementById('csv-input');
+        var mapTypeSelector = document.getElementById('map-type-selector'), gotoLocationBtn = document.getElementById('goto-location-btn');
+        var getLocationBtn = document.getElementById('get-location-btn');
+        var manualIdInput = document.getElementById('manual-id-input'), manualLngInput = document.getElementById('manual-lng-input'), manualLatInput = document.getElementById('manual-lat-input'), manualAddBtn = document.getElementById('manual-add-btn');
         var importedPointsContainer = document.getElementById('imported-points-container');
         var planningWaypointsContainer = document.getElementById('planning-waypoints-container');
 
         // --- Marker 样式定义 ---
         var defaultIcon = new AMap.Icon({
-            size: new AMap.Size(25, 34),
-            image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png',
-            imageSize: new AMap.Size(25, 34)
+            size: new AMap.Size(25, 34), image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png', imageSize: new AMap.Size(25, 34)
         });
         var selectedIcon = new AMap.Icon({
-            size: new AMap.Size(25, 34),
-            image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png',
-            imageSize: new AMap.Size(25, 34)
+            size: new AMap.Size(25, 34), image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png', imageSize: new AMap.Size(25, 34)
         });
 
         // --- 事件绑定 ---
@@ -119,31 +147,95 @@
         clearBtn.addEventListener('click', clearAll);
         importCsvBtn.addEventListener('click', function() { csvInput.click(); });
         csvInput.addEventListener('change', handleFileSelect);
-
+        manualAddBtn.addEventListener('click', handleManualAdd);
+        mapTypeSelector.addEventListener('change', changeMapType);
+        gotoLocationBtn.addEventListener('click', gotoCurrentLocation);
+        getLocationBtn.addEventListener('click', getLocationAsStart);
         if (window.innerWidth > 768) { controlPanel.classList.remove('collapsed'); }
         
         // --- 主要功能函数 ---
-        
+
+        function addPoint(pointData, autoSelect = false) {
+            if (importedPoints.some(p => p.id === pointData.id)) {
+                showErrorMessage('添加失败：ID "' + pointData.id + '" 已存在。');
+                return false;
+            }
+
+            var point = { ...pointData, marker: null, listItem: null };
+
+            // 创建Marker
+            point.marker = new AMap.Marker({
+                position: [point.lng, point.lat], icon: defaultIcon,
+                label: { content: String(point.id), direction: 'bottom' },
+                extData: { id: point.id }
+            });
+            point.marker.on('click', () => togglePointInPlan(point));
+            map.add(point.marker);
+
+            // 创建列表项
+            point.listItem = document.createElement('div');
+            point.listItem.className = 'list-item';
+            point.listItem.textContent = 'ID: ' + point.id;
+            point.listItem.onclick = () => togglePointInPlan(point);
+            importedPointsContainer.appendChild(point.listItem);
+            
+            importedPoints.push(point);
+
+            if (autoSelect) {
+                togglePointInPlan(point);
+            }
+            return true;
+        }
+
+        function togglePointInPlan(point) {
+            var existingIndex = planningWaypoints.findIndex(p => p.id === point.id);
+            if (existingIndex > -1) {
+                planningWaypoints.splice(existingIndex, 1);
+                point.marker.setIcon(defaultIcon);
+                point.listItem.classList.remove('selected');
+            } else {
+                planningWaypoints.push(point);
+                point.marker.setIcon(selectedIcon);
+                point.listItem.classList.add('selected');
+            }
+            updatePlanningList();
+        }
+
+        function updatePlanningList() {
+            planningWaypointsContainer.innerHTML = '';
+            planningWaypoints.forEach((point, index) => {
+                var item = document.createElement('div');
+                item.className = 'list-item';
+                var label = (index === 0) ? '起点: ' : (index === planningWaypoints.length - 1) ? '终点: ' : '途经: ';
+                item.textContent = label + 'ID ' + point.id;
+                
+                var deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = '移除';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    togglePointInPlan(point);
+                };
+                item.appendChild(deleteBtn);
+                planningWaypointsContainer.appendChild(item);
+            });
+        }
+
         function handleFileSelect(event) {
             var file = event.target.files[0];
             if (!file) return;
             var reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    parseCsvAndRender(e.target.result);
-                } catch (err) {
-                    showErrorMessage('解析文件失败：' + err.message);
-                }
+            reader.onload = (e) => {
+                try { parseCsvAndAddPoints(e.target.result); } 
+                catch (err) { showErrorMessage('解析文件失败：' + err.message); }
             };
             reader.readAsText(file);
             event.target.value = '';
         }
 
-        function parseCsvAndRender(csvText) {
-            clearAll();
+        function parseCsvAndAddPoints(csvText) {
             var lines = csvText.trim().split(/\r\n|\n/);
-            var tempPoints = [];
-            
+            var pointsAddedCount = 0;
             for (var i = 1; i < lines.length; i++) {
                 var line = lines[i].trim();
                 if (!line) continue;
@@ -155,89 +247,61 @@
                 var lat = parseFloat(parts[2]);
 
                 if (!id || isNaN(lng) || isNaN(lat)) continue;
-                tempPoints.push({ id: id, lng: lng, lat: lat });
+
+                if(addPoint({ id, lng, lat })) {
+                    pointsAddedCount++;
+                }
             }
-
-            if (tempPoints.length === 0) {
-                showErrorMessage('未找到有效坐标点');
-                return;
-            }
-
-            importedPoints = tempPoints;
-            renderImportedPoints();
-            map.setFitView();
-            showErrorMessage('成功导入 ' + importedPoints.length + ' 个点！');
-        }
-        
-        function renderImportedPoints() {
-            importedPointsContainer.innerHTML = '';
-            importedPoints.forEach(function(point, index) {
-                // 创建Marker
-                var marker = new AMap.Marker({
-                    position: [point.lng, point.lat],
-                    icon: defaultIcon,
-                    label: { content: String(point.id), direction: 'bottom' },
-                    extData: { id: point.id } // 把ID存入marker
-                });
-                point.marker = marker; // 将marker关联回数据点
-                marker.on('click', function() {
-                    togglePointInPlan(point);
-                });
-                map.add(marker);
-
-                // 创建列表项
-                var item = document.createElement('div');
-                item.className = 'list-item';
-                item.textContent = 'ID: ' + point.id;
-                item.onclick = function() {
-                    togglePointInPlan(point);
-                };
-                importedPointsContainer.appendChild(item);
-                point.listItem = item; // 关联列表项
-            });
-        }
-
-        function togglePointInPlan(point) {
-            var existingIndex = planningWaypoints.findIndex(p => p.id === point.id);
-
-            if (existingIndex > -1) {
-                // 如果已在规划中，则移除
-                planningWaypoints.splice(existingIndex, 1);
-                point.marker.setIcon(defaultIcon); // 恢复默认图标
-                point.listItem.classList.remove('selected');
+            if (pointsAddedCount > 0) {
+                map.setFitView();
+                showErrorMessage('成功导入 ' + pointsAddedCount + ' 个点！');
             } else {
-                // 如果不在规划中，则添加
-                planningWaypoints.push(point);
-                point.marker.setIcon(selectedIcon); // 设置为选中图标
-                point.listItem.classList.add('selected');
+                showErrorMessage('CSV文件中未找到有效坐标点');
             }
-            updatePlanningList();
         }
 
-        function updatePlanningList() {
-            planningWaypointsContainer.innerHTML = '';
-            planningWaypoints.forEach(function(point, index) {
-                var item = document.createElement('div');
-                item.className = 'list-item';
-                var label = (index === 0) ? '起点: ' : (index === planningWaypoints.length - 1) ? '终点: ' : '途经点: ';
-                item.textContent = label + 'ID ' + point.id;
-                
-                var deleteBtn = document.createElement('button');
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.textContent = '移除';
-                deleteBtn.onclick = function(e) {
-                    e.stopPropagation(); // 防止触发父元素的点击事件
-                    togglePointInPlan(point);
-                };
+        function handleManualAdd() {
+            var id = manualIdInput.value.trim();
+            var lng = parseFloat(manualLngInput.value);
+            var lat = parseFloat(manualLatInput.value);
 
-                item.appendChild(deleteBtn);
-                planningWaypointsContainer.appendChild(item);
+            if (!id) { showErrorMessage('ID不能为空'); return; }
+            if (isNaN(lng) || isNaN(lat)) { showErrorMessage('经纬度必须为有效数字'); return; }
+
+            if (addPoint({ id, lng, lat })) {
+                showErrorMessage('成功添加点: ' + id);
+                manualIdInput.value = ''; manualLngInput.value = ''; manualLatInput.value = '';
+                map.setFitView();
+            }
+        }
+
+        function getLocationAsStart() {
+            getLocationBtn.disabled = true;
+            getLocationBtn.textContent = '正在定位...';
+            var geoloc = new AMap.Geolocation({ timeout: 10000 });
+            geoloc.getCurrentPosition((status, result) => {
+                if (status === 'complete') {
+                    // 生成一个唯一的ID
+                    let counter = 1;
+                    let id = `MyLocation-${counter}`;
+                    while(importedPoints.some(p => p.id === id)) {
+                        counter++;
+                        id = `MyLocation-${counter}`;
+                    }
+                    const point = { id: id, lng: result.position.lng, lat: result.position.lat };
+                    addPoint(point, true); // 添加并自动选择
+                    map.setCenter(result.position);
+                    showErrorMessage('已添加当前位置为起点');
+                } else {
+                    showErrorMessage('定位失败: ' + result.message);
+                }
+                getLocationBtn.disabled = false;
+                getLocationBtn.textContent = '添加当前位置为起点';
             });
         }
 
         function doPathOptimize() {
             if (planningWaypoints.length < 2) { showErrorMessage('至少选择2个点进行规划'); return; }
-            var selectedPolicy = AMap.DrivingPolicy[strategySelector.value];
             if (driving) { driving.clear(); }
             routeInfoPanel.style.display = 'none';
             var selectedPolicy = AMap.DrivingPolicy[strategySelector.value];
@@ -245,17 +309,12 @@
             
             var startPoint = new AMap.LngLat(planningWaypoints[0].lng, planningWaypoints[0].lat);
             var endPoint = new AMap.LngLat(planningWaypoints[planningWaypoints.length - 1].lng, planningWaypoints[planningWaypoints.length - 1].lat);
-            var intermediatePoints = [];
-            if (planningWaypoints.length > 2) {
-                for (var i = 1; i < planningWaypoints.length - 1; i++) {
-                    intermediatePoints.push(new AMap.LngLat(planningWaypoints[i].lng, planningWaypoints[i].lat));
-                }
-            }
+            var intermediatePoints = planningWaypoints.slice(1, -1).map(p => new AMap.LngLat(p.lng, p.lat));
             
             var searchOptions = { viaReordering: true };
             if (intermediatePoints.length > 0) { searchOptions.waypoints = intermediatePoints; }
             
-            driving.search(startPoint, endPoint, searchOptions, function(status, result) {
+            driving.search(startPoint, endPoint, searchOptions, (status, result) => {
                 if (status === 'complete' && result.routes && result.routes.length) {
                     var route = result.routes[0];
                     routeTimeEl.textContent = formatTime(route.time);
@@ -269,7 +328,7 @@
         
         function clearAll() {
             if (driving) { driving.clear(); }
-            map.remove(importedPoints.map(p => p.marker)); // 清除所有marker
+            map.remove(importedPoints.map(p => p.marker));
             importedPoints = [];
             planningWaypoints = [];
             importedPointsContainer.innerHTML = '';
@@ -278,12 +337,25 @@
             routeInfoPanel.style.display = 'none';
         }
         
-        function showErrorMessage(message) {
-            errorMessage.textContent = message;
-            setTimeout(function() { errorMessage.textContent = ''; }, 5000);
+        function changeMapType() {
+            if (mapTypeSelector.value === 'satellite') { map.add([satelliteLayer, roadNetLayer]); } 
+            else { map.remove([satelliteLayer, roadNetLayer]); }
         }
 
-        function formatTime(seconds) { if (isNaN(seconds) || seconds < 0) return "--"; var hours = Math.floor(seconds / 3600); var minutes = Math.floor((seconds % 3600) / 60); var result = ""; if (hours > 0) result += hours + "小时"; if (minutes > 0 || hours === 0) result += minutes + "分钟"; return result || "小于1分钟"; }
+        function gotoCurrentLocation() {
+            var geoloc = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000, zoomToAccuracy: true });
+            geoloc.getCurrentPosition((status, result) => {
+                if (status == 'complete') {
+                    map.setCenter(result.position);
+                    showErrorMessage('定位成功！');
+                } else {
+                    showErrorMessage('定位失败：' + result.message);
+                }
+            });
+        }
+
+        function showErrorMessage(message) { errorMessage.textContent = message; setTimeout(() => { errorMessage.textContent = ''; }, 5000); }
+        function formatTime(seconds) { if (isNaN(seconds) || seconds < 0) return "--"; var h = Math.floor(seconds / 3600); var m = Math.floor((seconds % 3600) / 60); var res = ""; if (h > 0) res += h + "小时"; if (m > 0 || h === 0) res += m + "分钟"; return res || "小于1分钟"; }
         
         // 初始化
         updatePlanningList();
